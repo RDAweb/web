@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser with URL Paste and Close All Tabs</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+        }
+
+        #tabs {
+            display: flex;
+            background-color: #eee;
+            padding: 10px;
+            overflow-y: hidden;
+            overflow-x: auto;
+        }
+
+        .tab {
+            width: 25%;
+            margin-right: 10px;
+            padding: 5px 10px;
+            background-color: #007BFF;
+            color: white;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            min-width: 120px; 
+        }
+
+        .close {
+            margin-left: auto;
+            background-color: transparent;
+            padding: 0 5px;
+            cursor: pointer;
+            border-radius: 50%;
+            font-weight: bold;
+        }
+
+        .active-tab {
+            background-color: #0056b3;
+        }
+
+        .navbar {
+            display: flex;
+            padding: 10px;
+            background-color: #f0f0f0;
+            align-items: center;
+        }
+
+        #url {
+            flex-grow: 1;
+            padding: 8px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 8px 12px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            margin-left: 5px;
+            border-radius: 4px;
+        }
+
+        #bookmark-button {
+            background-color: #28a745;
+        }
+
+        iframe {
+            width: 100%;
+            height: calc(100vh - 120px); 
+            border: none;
+        }
+
+        #bookmarks {
+            padding: 10px;
+            background-color: #eee;
+            margin-top: 10px;
+            max-height: 80px;
+            overflow-y: scroll;
+        }
+
+        .bookmark {
+            cursor: pointer;
+            color: blue;
+            text-decoration: underline;
+        }
+        .frameless {
+    width: 100%; /* Takes up 100% of the available width */
+    max-width: 1200px; /* Limit the maximum width */
+    padding: 10px;
+    box-sizing: border-box; /* Ensure padding is included in the element's width */
+    margin: 0 auto; /* Center the element */
+}
+
+/* Media Queries for smaller screens */
+@media (max-width: 1200px) {
+    .frameless {
+        max-width: 1000px;
+    }
+}
+
+@media (max-width: 768px) {
+    .frameless {
+        max-width: 600px;
+    }
+}
+
+@media (max-width: 480px) {
+    .frameless {
+        max-width: 100%;
+    }
+}
+    </style>
+</head>
+<body>
+
+    <div id="tabs"></div>
+
+    <div class="navbar">
+        <button onclick="addTab()">New Tab</button>
+        <input type="text" id="url" placeholder="Enter URL" />
+        <button onclick="navigate()">Go</button>
+        <button onclick="goBack()">Back</button>
+        <button onclick="goForward()">Forward</button>
+    </div>
+        <div class="frameless">
+        <button id="bookmark-button" onclick="addBookmark()">Bookmark</button>
+        <button onclick="pasteUrlToAllTabs()">Paste URL to All Tabs</button> <!-- Paste URL to All Tabs Button -->
+        <button onclick="closeAllTabs()">Close All Tabs</button> <!-- New Close All Tabs Button -->
+    </div>
+
+    <iframe id="browser" src="https://www..com" onload="updateTabTitle()"></iframe>
+
+    <div id="bookmarks">
+        <h3>Bookmarks</h3>
+        <ul id="bookmark-list"></ul>
+    </div>
+
+    <script>
+        let tabs = [];
+        let currentTabIndex = 0;
+        let bookmarks = [];
+
+        // Function to create a new tab
+        function addTab() {
+            const newTab = {
+                id: tabs.length,
+                history: [''],
+                currentHistoryIndex: 0,
+                title: 'Loading...'
+            };
+            tabs.push(newTab);
+            currentTabIndex = newTab.id;
+            renderTabs();
+            loadURL(newTab.history[0]);
+        }
+
+        // Function to render tabs
+        function renderTabs() {
+            const tabsContainer = document.getElementById('tabs');
+            tabsContainer.innerHTML = '';
+            tabs.forEach((tab, index) => {
+                const tabElement = document.createElement('div');
+                tabElement.classList.add('tab');
+                if (index === currentTabIndex) {
+                    tabElement.classList.add('active-tab');
+                }
+                tabElement.innerText = tab.title;
+
+                const closeButton = document.createElement('span');
+                closeButton.classList.add('close');
+                closeButton.innerText = 'X';
+                closeButton.onclick = (event) => {
+                    event.stopPropagation();
+                    closeTab(index);
+                };
+                tabElement.appendChild(closeButton);
+                tabElement.onclick = () => switchTab(index);
+                tabsContainer.appendChild(tabElement);
+            });
+        }
+
+        // Function to close a tab
+        function closeTab(index) {
+            tabs.splice(index, 1);
+            if (currentTabIndex >= index && currentTabIndex > 0) {
+                currentTabIndex--;
+            }
+            if (tabs.length === 0) {
+                addTab();
+            } else {
+                renderTabs();
+                loadURL(tabs[currentTabIndex].history[tabs[currentTabIndex].currentHistoryIndex]);
+            }
+        }
+
+        // Function to switch between tabs
+        function switchTab(index) {
+            currentTabIndex = index;
+            const currentTab = tabs[currentTabIndex];
+            loadURL(currentTab.history[currentTab.currentHistoryIndex]);
+            renderTabs();
+        }
+
+        // Function to navigate to a URL
+        function navigate() {
+            const urlInput = document.getElementById('url').value;
+            let url = urlInput.startsWith('http://') || urlInput.startsWith('https://') ? urlInput : `http://${urlInput}`;
+            const currentTab = tabs[currentTabIndex];
+            currentTab.history.push(url);
+            currentTab.currentHistoryIndex++;
+            loadURL(url);
+        }
+
+        // Function to load URL in iframe
+        function loadURL(url) {
+            const iframe = document.getElementById('browser');
+            iframe.src = url;
+            document.getElementById('url').value = url;
+            tabs[currentTabIndex].title = 'Loading...';
+            renderTabs();
+        }
+
+        // Function to update the tab title based on the page's title or simplified URL
+        function updateTabTitle() {
+            const iframe = document.getElementById('browser');
+            try {
+                const title = iframe.contentWindow.document.title || getDomainName(iframe.src);
+                tabs[currentTabIndex].title = title;
+            } catch (error) {
+                tabs[currentTabIndex].title = getDomainName(iframe.src);
+            }
+            renderTabs();
+        }
+
+        // Function to go back in history
+        function goBack() {
+            const currentTab = tabs[currentTabIndex];
+            if (currentTab.currentHistoryIndex > 0) {
+                currentTab.currentHistoryIndex--;
+                loadURL(currentTab.history[currentTab.currentHistoryIndex]);
+            }
+        }
+
+        // Function to go forward in history
+        function goForward() {
+            const currentTab = tabs[currentTabIndex];
+            if (currentTab.currentHistoryIndex < currentTab.history.length - 1) {
+                currentTab.currentHistoryIndex++;
+                loadURL(currentTab.history[currentTab.currentHistoryIndex]);
+            }
+        }
+
+        // Function to add a bookmark
+        function addBookmark() {
+            const currentTab = tabs[currentTabIndex];
+            const currentURL = currentTab.history[currentTab.currentHistoryIndex];
+            bookmarks.push(currentURL);
+            renderBookmarks();
+        }
+
+        // Function to render bookmarks
+        function renderBookmarks() {
+            const bookmarkList = document.getElementById('bookmark-list');
+            bookmarkList.innerHTML = '';
+            bookmarks.forEach((bookmark) => {
+                const bookmarkElement = document.createElement('li');
+                bookmarkElement.classList.add('bookmark');
+                bookmarkElement.innerText = bookmark;
+                bookmarkElement.onclick = () => loadURL(bookmark);
+                bookmarkList.appendChild(bookmarkElement);
+            });
+        }
+
+        // Function to paste the URL to all tabs
+        function pasteUrlToAllTabs() {
+            const urlInput = document.getElementById('url').value;
+            const url = urlInput.startsWith('http://') || urlInput.startsWith('https://') ? urlInput : `http://${urlInput}`;
+            tabs.forEach(tab => {
+                tab.history.push(url);
+                tab.currentHistoryIndex = tab.history.length - 1;
+            });
+            loadURL(url);
+        }
+
+        // Function to close all tabs except the first one
+        function closeAllTabs() {
+            const firstTab = tabs[0]; // Keep the first tab
+            tabs = [firstTab]; // Remove all other tabs
+            currentTabIndex = 0; // Set the active tab to the first one
+            firstTab.history = ['']; // Reset the history of the first tab
+            firstTab.currentHistoryIndex = 0;
+            firstTab.title = 'Loading...'; // Reset title of the first tab
+            renderTabs();
+            loadURL(firstTab.history[0]); // Load the initial empty URL in the first tab
+        }
+
+        // Initialize the first tab
+        addTab();
+    </script>
+</body>
+</html>
